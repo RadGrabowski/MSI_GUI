@@ -36,6 +36,7 @@ class Navigator(NavigationToolbar2Tk):
             for entry in self.entries:
                 if self.type.get() != 'Off':
                     entry.configure(state='normal')
+            self.entries[-1].configure(state='readonly')
             if self.type.get() == 'Lowpass' or self.type.get() == 'Highpass':
                 self.entries[1].configure(state='disabled')
 

@@ -27,7 +27,7 @@ def click(event):
             if x + (right - left) / 2 > 50:
                 right = 49.99
 
-            left_cutoff_entry.delete(0, tk.END)
+            left_cutoff_entry.delete(0, tk.END)  # removing old values from the entries and inserting the new ones
             right_cutoff_entry.delete(0, tk.END)
             left_cutoff_entry.insert(tk.END, left)
             right_cutoff_entry.insert(tk.END, right)
@@ -45,11 +45,14 @@ def hover_leave(event):
 
 
 def start_filtering(event):
+    """Gets called when the filter type, frequency or order changes. Recalculates then the output based on the newly
+    set parameters and plots a new graph on the GUI. """
     global filtered
-    ax[0, 0].clear()
+    ax[0, 0].clear()  # clears the subplots before drawing the new ones
     ax[1, 0].clear()
 
-    if filter_type_cbb.get() == 'Off':
+    if filter_type_cbb.get() == 'Off':  # if there is no filter applied, there is no possibility to insert a value in
+        # the entries determining filter's parameters
         ax[0, 0].plot(t, sig, color='#1f77b4', lw=1)
         ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1)
         left_cutoff_entry.configure(state='disabled')
@@ -61,62 +64,67 @@ def start_filtering(event):
             left_cutoff_entry.configure(state='normal')
             filter_order.configure(state='normal')
             if left_cutoff_entry.get() == '':
-                left_cutoff_entry.insert(tk.END, 10)
+                left_cutoff_entry.insert(tk.END, round(fs/5, 2))  # default filtering position if no value was set
             if filter_order.get() == '':
-                filter_order.insert(tk.END, 10)
+                filter_order.insert(tk.END, 10)  # default filter order if no value was set
             left = round(float(left_cutoff_entry.get()), 2)
 
             if filter_type_cbb.get() == 'Lowpass' or filter_type_cbb.get() == 'Highpass':
+                # design of the lowpass or highpass filter, configuration of the red shaded part
                 right_cutoff_entry.configure(state='disabled')
                 label.configure(text='Critical frequency (Hz):')
-                sos = signal.butter(int(filter_order.get()), (left,), filter_type_cbb.get().lower(), fs=fs, output='sos')
-
+                sos = signal.butter(int(filter_order.get()), left, filter_type_cbb.get().lower(), fs=fs,
+                                    output='sos')
                 if filter_type_cbb.get() == 'Highpass':
-                    ax[1, 0].axvspan(left, 50, alpha=0.3, color='red')
+                    ax[1, 0].axvspan(left, fs/2, alpha=0.3, color='red')
                 else:
                     ax[1, 0].axvspan(0, left, alpha=0.3, color='red')
 
             if filter_type_cbb.get() == 'Bandpass' or filter_type_cbb.get() == 'Bandstop':
+                # design of the bandpass or bandstop filter, configuration of the red shaded part
                 label.configure(text='Critical frequencies (Hz):')
                 right_cutoff_entry.configure(state='normal')
                 if right_cutoff_entry.get() == '':
-                    right_cutoff_entry.insert(tk.END, 20)
+                    right_cutoff_entry.insert(tk.END, round(fs/3, 2))
                 right = round(float(right_cutoff_entry.get()), 2)
                 if right < left:
-                    right = left + fs/10
-                    if right > fs/2:
-                        right -= fs/10
-                        left = right - fs/10
+                    right = left + fs / 10
+                    if right > fs / 2:
+                        right -= fs / 10
+                        left = right - fs / 10
 
-                sos = signal.butter(int(filter_order.get()), (left, right), filter_type_cbb.get().lower(), fs=fs, output='sos')
+                sos = signal.butter(int(filter_order.get()), (left, right), filter_type_cbb.get().lower(),
+                                    fs=fs, output='sos')
                 ax[1, 0].axvline(right, color='red')
 
                 if filter_type_cbb.get() == 'Bandstop':
                     ax[1, 0].axvspan(0, left, alpha=0.3, color='red')
-                    ax[1, 0].axvspan(right, 50, alpha=0.3, color='red')
+                    ax[1, 0].axvspan(right, fs/2, alpha=0.3, color='red')
                 else:
                     ax[1, 0].axvspan(left, right, alpha=0.3, color='red')
 
-                left_cutoff_entry.delete(0, tk.END)
-                left_cutoff_entry.insert(tk.END, left)
-                right_cutoff_entry.delete(0, tk.END)
-                right_cutoff_entry.insert(tk.END, right)
+                # left_cutoff_entry.delete(0, tk.END)
+                # left_cutoff_entry.insert(tk.END, left)
+                # right_cutoff_entry.delete(0, tk.END)
+                # right_cutoff_entry.insert(tk.END, right)
 
-            filtered = signal.sosfilt(sos, sig)
+            filtered = signal.sosfilt(sos, sig)  # the original signal is filtered with the designed filter
 
-            ax[0, 0].plot(t, filtered, color='#1f77b4', lw=1)
-            ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1)
-            ax[1, 0].magnitude_spectrum(filtered, Fs=fs, color='y', lw=1)
+            ax[0, 0].plot(t, filtered, color='#1f77b4', lw=1)  # time domain plot
+            ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1)  # frequency domain, original signal
+            ax[1, 0].magnitude_spectrum(filtered, Fs=fs, color='y', lw=1)  # frequency domain, filtered signal
 
-            ax[1, 0].axvline(left, color='red')  # cutoff frequency
+            ax[1, 0].axvline(left, color='red')  # red line on the cutoff frequency
             ax[1, 0].legend(('Original', 'Filtered'), prop={'size': 8}, loc=1)
 
-        except ValueError as ex:
+        except ValueError as ex:  # when trying to insert incorrect data into the entries, a window informing about
+            # it is displayed
             messagebox.showerror(ex, str(ex).capitalize())
             return
 
     ax[0, 0].set_xlim(0, 1)
-    ax[1, 0].set_xlim(0, 50)
+    ax[0, 0].set_ylim(auto=True)
+    ax[1, 0].set_xlim(0, fs / 2)
     if toolbar._active is None:
         toolbar.forward()
     canvas.draw()
@@ -142,18 +150,19 @@ figure, ax = plt.subplots(2, 2)
 ax[0, 0].plot(t, sig, color='#1f77b4', lw=1)  # upper subplot, time domain
 ax[0, 0].set_xlim(0, 1)
 ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1)  # bottom subplot, frequency domain
-ax[1, 0].set_xlim(0, 50)
-plt.autoscale(enable=True)
+ax[1, 0].set_xlim(0, fs / 2)
 
 canvas = FigureCanvasTkAgg(figure, root)  # making the plots a Tkinter object and binding it to the main window
 canvas.get_tk_widget().place(x=0, y=0, anchor="nw", relwidth=0.8, relheight=1)
 canvas.draw()  # needs to be called in order to refresh the plot on the GUI window
 
-can_click = canvas.mpl_connect('button_press_event', click)  # binding the canvas to functions that react to certain behavior
+can_click = canvas.mpl_connect('button_press_event',
+                               click)  # binding the canvas to functions that react to certain behavior
 can_enter = canvas.mpl_connect('axes_enter_event', hover_enter)
 can_leave = canvas.mpl_connect('axes_leave_event', hover_leave)
 
-# CREATING OF TOOLBAR AND THE CONTROL PANEL WITH ITS CORRESPONDING BUTTONS AND ENTRIES AND PLACING THEM ON THE MAIN WINDOW
+# CREATING OF TOOLBAR AND THE CONTROL PANEL WITH ITS CORRESPONDING BUTTONS AND ENTRIES AND PLACING THEM ON THE MAIN
+# WINDOW
 panel = tk.LabelFrame(root, bg='white')
 panel.place(relx=0.75, rely=0.1, anchor="nw", relwidth=0.23, height=150)
 filter_type_cbb = ttk.Combobox(panel, values=['Off', 'Lowpass', 'Highpass', 'Bandpass', 'Bandstop'], state='readonly')
@@ -180,9 +189,11 @@ filter_order.bind("<Return>", lambda event: start_filtering(event))
 filter_order.place(relx=0.05, y=120, anchor="w", width=45, height=20)
 filter_order.configure(state='disabled')
 
-toolbar = Navigator(canvas, root, filter_type_cbb, [left_cutoff_entry, right_cutoff_entry, filter_order], [can_click, 'button_press_event', click],
-                         [can_enter, 'axes_enter_event', hover_enter],
-                         [can_leave, 'axes_leave_event', hover_leave])
+toolbar = Navigator(canvas, root, filter_type_cbb,
+                    [left_cutoff_entry, right_cutoff_entry, filter_order, filter_type_cbb],
+                    [can_click, 'button_press_event', click],
+                    [can_enter, 'axes_enter_event', hover_enter],
+                    [can_leave, 'axes_leave_event', hover_leave])
 toolbar.place(relx=0.1, rely=0, anchor="nw")
 toolbar.config(background='white')
 toolbar._message_label.config(background='white')

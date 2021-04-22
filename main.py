@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from navigator import Navigator
 from copy import deepcopy
+from opening_window import OpenFile
 
 
 def click(event):
@@ -49,11 +50,12 @@ def hover_leave(event):
 def start_filtering(event):
     """Gets called when the filter type, frequency or order changes. Recalculates then the output based on the newly
     set parameters and plots a new graph on the GUI. """
-    global filtered, prev_diff
+    global filtered, prev_diff, fs
     ax[0, 0].clear()  # clears the subplots before drawing the new ones
     ax[1, 0].clear()
     diff_check.set('off')
     differentiate('_')
+    fs = int(sampling_frequency.get())
 
     if filter_type_cbb.get() == 'Off':  # if there is no filter applied, there is no possibility to insert a value in
         # the entries determining filter's parameters
@@ -126,7 +128,7 @@ def start_filtering(event):
             messagebox.showerror(ex, str(ex).capitalize())
             return
 
-    ax[0, 0].set_xlim(0, 1)
+    ax[0, 0].set_xlim(0, sig.size / fs - 1 / fs)
     ax[0, 0].set_ylim(auto=True)
     ax[1, 0].set_xlim(0, fs / 2)
     if toolbar._active is None:
@@ -161,11 +163,25 @@ def differentiate(callback=None):
 
 
 def detrend():
-    pass
+    global filtered
+
 
 
 def detrend_line():
     pass
+
+
+def center(window, width, height):
+    """Puts the given window in the center of the screen."""
+
+    frm_width = window.winfo_rootx() - window.winfo_x()
+    win_width = width + 2 * frm_width
+    titlebar_height = window.winfo_rooty() - window.winfo_y()
+    win_height = height + titlebar_height + frm_width
+    x = (window.winfo_screenwidth() // 2) - (win_width // 2)
+    y = (window.winfo_screenheight() // 2) - (win_height // 2) - 15
+    window.geometry(f'{width}x{height}+{x}+{y}')
+    window.deiconify()
 
 
 # GETTING THE INPUT SIGNAL, EXTRACTING ITS USEFUL DATA
@@ -174,19 +190,31 @@ def detrend_line():
 #     if isinstance(sig[key], np.ndarray):
 #         sig = np.squeeze(sig[key])
 
-t = np.linspace(0, 1, 1000, False)
-sig = np.sin(2 * np.pi * 10 * t) + np.sin(2 * np.pi * 20 * t)
-fs = 100
-filtered = sig
+# t = np.linspace(0, 1, 1000, False)
+# sig = np.sin(2 * np.pi * 10 * t) + np.sin(2 * np.pi * 20 * t)
+# fs = 100
+# filtered = sig
 
 # BEGIN OF GUI, PLACEMENT OF ELEMENTS, BINDING TO EVENTS, ETC
+opening_window = tk.Tk()
+center(opening_window, 250, 110)
+start_window = OpenFile(opening_window)
+opening_window.mainloop()
+
+sig = start_window.get_params
+if sig.size == 0:
+    quit()
+filtered = sig
+t = np.linspace(0, 1, sig.size, False)
+fs = sig.size * 10
+
 root = tk.Tk()  # main window
-root.geometry('1000x600')  # main window size
+center(root, 1000, 600)
 root.configure(background='white')  # main window background color
 root.title('GUI')  # main window title
 figure, ax = plt.subplots(2, 2)
 ax[0, 0].plot(t, sig, color='#1f77b4', lw=1)  # upper subplot, time domain
-ax[0, 0].set_xlim(0, 1)
+ax[0, 0].set_xlim(0, sig.size / fs - 1 / fs)
 ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1)  # bottom subplot, frequency domain
 ax[1, 0].set_xlim(0, fs / 2)
 
@@ -225,12 +253,18 @@ right_cutoff_entry.bind("<Return>", lambda event: start_filtering(event))
 right_cutoff_entry.place(x=65, y=70, anchor="w", width=45, height=20)
 right_cutoff_entry.configure(state='disabled')
 
-ttk.Label(panel, text='Filter order', background='white').place(relx=0.05, y=95, anchor="w", width=135, height=20)
+ttk.Label(panel, text='Order', background='white').place(relx=0.05, y=95, anchor="w", width=135, height=20)
+ttk.Label(panel, text='Fs', background='white').place(relx=0.35, y=95, anchor="w", width=135, height=20)
 
 filter_order = ttk.Entry(panel, width=6, justify='center')
 filter_order.bind("<Return>", lambda event: start_filtering(event))
 filter_order.place(relx=0.05, y=120, anchor="w", width=45, height=20)
 filter_order.configure(state='disabled')
+
+sampling_frequency = ttk.Entry(panel, width=6, justify='center')
+sampling_frequency.bind("<Return>", lambda event: start_filtering(event))
+sampling_frequency.place(x=65, y=120, anchor="w", width=45, height=20)
+sampling_frequency.insert(0, fs)
 
 diff_check = tk.StringVar(value='off')
 prev_diff = 'off'

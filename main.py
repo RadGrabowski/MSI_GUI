@@ -1,5 +1,7 @@
+from math import ceil, log2
+from tkinter.filedialog import asksaveasfile
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from scipy.io import loadmat
+from scipy.io import savemat
 from scipy import signal
 import numpy as np
 import tkinter as tk
@@ -27,8 +29,8 @@ def click(event):
             right = round(x + (float(right_cutoff_entry.get()) - float(left_cutoff_entry.get())) / 2, 2)
             if x - (right - left) / 2 < 0:
                 left = 0.01
-            if x + (right - left) / 2 > 50:
-                right = 49.99
+            if x + (right - left) / 2 > fs / 2:
+                right = fs / 2 - 0.01
 
             left_cutoff_entry.delete(0, tk.END)  # removing old values from the entries and inserting the new ones
             right_cutoff_entry.delete(0, tk.END)
@@ -60,7 +62,7 @@ def start_filtering(event):
     if filter_type_cbb.get() == 'Off':  # if there is no filter applied, there is no possibility to insert a value in
         # the entries determining filter's parameters
         ax[0, 0].plot(t, sig, color='#1f77b4', lw=1)
-        ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1)
+        ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size))))
         left_cutoff_entry.configure(state='disabled')
         right_cutoff_entry.configure(state='disabled')
         filter_order.configure(state='disabled')
@@ -117,8 +119,8 @@ def start_filtering(event):
             filtered = signal.sosfilt(sos, sig)  # the original signal is filtered with the designed filter
 
             ax[0, 0].plot(t, filtered, color='#1f77b4', lw=1)  # time domain plot
-            ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1)  # frequency domain, original signal
-            ax[1, 0].magnitude_spectrum(filtered, Fs=fs, color='y', lw=1)  # frequency domain, filtered signal
+            ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size))))  # frequency domain, original signal
+            ax[1, 0].magnitude_spectrum(filtered, Fs=fs, color='y', lw=1, pad_to=2**ceil(log2(abs(sig.size))))  # frequency domain, filtered signal
 
             ax[1, 0].axvline(left, color='red')  # red line on the cutoff frequency
             ax[1, 0].legend(('Original', 'Filtered'), prop={'size': 8}, loc=1)
@@ -128,8 +130,11 @@ def start_filtering(event):
             messagebox.showerror(ex, str(ex).capitalize())
             return
 
-    ax[0, 0].set_xlim(0, sig.size / fs - 1 / fs)
     ax[0, 0].set_ylim(auto=True)
+    ax[0, 0].title.set_text('Original signal')
+    ax[0, 0].set_xlabel('Time [s]')
+    ax[0, 0].set_ylabel('Amplitude')
+    ax[0, 0].ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
     ax[1, 0].set_xlim(0, fs / 2)
     if toolbar._active is None:
         toolbar.forward()
@@ -141,34 +146,49 @@ def differentiate(callback=None):
     ax[0, 1].clear()
     i = cumtrapz(filtered)
     d = np.diff(filtered)
+    differentiated = filtered
+
     if diff_check.get() == 'off':
         if prev_diff == 'off' and callback is None:
             return
         ax[0, 1].plot(t[:len(filtered)], filtered, color='#1f77b4', lw=1)
         prev_diff = 'off'
-        if callback is not None:  # prevents the plot to blink (the cause is the last line of this function)
+        if callback is not None:  # prevents the plot to blink (the cause is the canvas.draw() command of this function)
             return
     elif diff_check.get() == 'differentiate':
-        if prev_diff == 'differentiate':
+        if prev_diff == 'differentiate' and callback != 'save':
             return
         ax[0, 1].plot(t[:len(d)], d, color='#1f77b4', lw=1)
         prev_diff = 'differentiate'
+        differentiated = d
     elif diff_check.get() == 'integrate':
-        if prev_diff == 'integrate':
+        if prev_diff == 'integrate' and callback != 'save':
             return
         ax[0, 1].plot(t[:len(i)], i, color='#1f77b4', lw=1)
         prev_diff = 'integrate'
+        differentiated = i
+
     ax[0, 1].ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
     canvas.draw()
+    return differentiated
 
 
 def detrend():
     global filtered
 
 
-
 def detrend_line():
     pass
+
+
+def save():
+    files = [('MATLAB Files', '*.mat')]
+    file = asksaveasfile(filetypes=files, defaultextension=files)
+    data = differentiate('save')
+    try:
+        savemat(file.name, {'signal': data})
+    except AttributeError:  # occurs when user closes the save window without saving
+        pass
 
 
 def center(window, width, height):
@@ -214,8 +234,10 @@ root.configure(background='white')  # main window background color
 root.title('GUI')  # main window title
 figure, ax = plt.subplots(2, 2)
 ax[0, 0].plot(t, sig, color='#1f77b4', lw=1)  # upper subplot, time domain
-ax[0, 0].set_xlim(0, sig.size / fs - 1 / fs)
-ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1)  # bottom subplot, frequency domain
+ax[0, 0].title.set_text('Original signal')
+ax[0, 0].set_xlabel('Time [s]')
+ax[0, 0].set_ylabel('Amplitude')
+ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size))))  # bottom subplot, frequency domain
 ax[1, 0].set_xlim(0, fs / 2)
 
 canvas = FigureCanvasTkAgg(figure, root)  # making the plots a Tkinter object and binding it to the main window
@@ -240,6 +262,9 @@ filter_type_cbb.config(width=9)
 filter_type_cbb.bind('<<ComboboxSelected>>', lambda event: start_filtering(event))
 filter_type_cbb.place(relx=0.05, y=20, anchor='w')
 
+save_button = ttk.Button(panel, text='Save', command=save, width=5)
+save_button.place(relx=0.95, y=20, anchor='e')
+
 label = ttk.Label(panel, text='No filter applied', background='white')
 label.place(relx=0.05, y=45, anchor="w", width=135, height=20)
 
@@ -254,7 +279,7 @@ right_cutoff_entry.place(x=65, y=70, anchor="w", width=45, height=20)
 right_cutoff_entry.configure(state='disabled')
 
 ttk.Label(panel, text='Order', background='white').place(relx=0.05, y=95, anchor="w", width=135, height=20)
-ttk.Label(panel, text='Fs', background='white').place(relx=0.35, y=95, anchor="w", width=135, height=20)
+ttk.Label(panel, text='Fs', background='white').place(x=65, y=95, anchor="w", width=20, height=20)
 
 filter_order = ttk.Entry(panel, width=6, justify='center')
 filter_order.bind("<Return>", lambda event: start_filtering(event))
@@ -283,7 +308,7 @@ ttk.Checkbutton(panel, text='Detrending line', style='White.TCheckbutton', var=t
                 command=lambda: detrend_line()).place(relx=0.4, y=200)
 
 toolbar = Navigator(canvas, root, filter_type_cbb,
-                    [left_cutoff_entry, right_cutoff_entry, filter_order, filter_type_cbb],
+                    [left_cutoff_entry, right_cutoff_entry, filter_order, sampling_frequency, filter_type_cbb],
                     [can_click, 'button_press_event', click],
                     [can_enter, 'axes_enter_event', hover_enter],
                     [can_leave, 'axes_leave_event', hover_leave])

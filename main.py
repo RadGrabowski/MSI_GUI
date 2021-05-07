@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from scipy.integrate import cumtrapz
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
+from matplotlib.ticker import MaxNLocator
 from navigator import Navigator
 from copy import deepcopy
 from opening_window import OpenFile
@@ -131,7 +131,7 @@ def start_filtering(event):
             return
 
     ax[0, 0].set_ylim(auto=True)
-    ax[0, 0].title.set_text('Original signal')
+    ax[0, 0].set_title('Original signal', fontsize=10)
     ax[0, 0].set_xlabel('Time [s]')
     ax[0, 0].set_ylabel('Amplitude')
     ax[0, 0].ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
@@ -153,7 +153,7 @@ def differentiate(callback=None):
             return
         ax[0, 1].plot(t[:len(filtered)], filtered, color='#1f77b4', lw=1)
         prev_diff = 'off'
-        if callback is not None:  # prevents the plot to blink (the cause is the canvas.draw() command of this function)
+        if callback is not None and callback != 'save':  # prevents the plot to blink (the cause is the canvas.draw() command of this function)
             return
     elif diff_check.get() == 'differentiate':
         if prev_diff == 'differentiate' and callback != 'save':
@@ -174,11 +174,22 @@ def differentiate(callback=None):
 
 
 def detrend():
-    global filtered
+    data = differentiate('save')
+    ax[1, 1].clear()
+    if trend.get():
+        data = signal.detrend(data)
+    ax[1, 1].plot(t[:len(data)], data, color='#1f77b4', lw=1)
+    if trend_line.get():
+        z = np.polyfit(t[:len(data)], data, 1)
+        p = np.poly1d(z)
+        ax[1, 1].plot(t, p(t), "k--", dashes=(5, 10), lw=1)
+        if z[1] < 0:
+            ax[1, 1].set_title(f"y = {z[0]:.2g}x {z[1]:.2g}", fontsize=10)  # the line equation
+        else:
+            ax[1, 1].set_title(f"y = {z[0]:.2g}x +{z[1]:.2g}", fontsize=10)
+    ax[1,1].yaxis.set_major_locator(MaxNLocator(7))
 
-
-def detrend_line():
-    pass
+    canvas.draw()
 
 
 def save():
@@ -216,104 +227,113 @@ def center(window, width, height):
 # filtered = sig
 
 # BEGIN OF GUI, PLACEMENT OF ELEMENTS, BINDING TO EVENTS, ETC
-opening_window = tk.Tk()
-center(opening_window, 250, 110)
-start_window = OpenFile(opening_window)
-opening_window.mainloop()
 
-sig = start_window.get_params
-if sig.size == 0:
-    quit()
-filtered = sig
-t = np.linspace(0, 1, sig.size, False)
-fs = sig.size * 10
+if __name__ == '__main__':
+    opening_window = tk.Tk()
+    center(opening_window, 250, 110)
+    start_window = OpenFile(opening_window)
+    opening_window.mainloop()
 
-root = tk.Tk()  # main window
-center(root, 1000, 600)
-root.configure(background='white')  # main window background color
-root.title('GUI')  # main window title
-figure, ax = plt.subplots(2, 2)
-ax[0, 0].plot(t, sig, color='#1f77b4', lw=1)  # upper subplot, time domain
-ax[0, 0].title.set_text('Original signal')
-ax[0, 0].set_xlabel('Time [s]')
-ax[0, 0].set_ylabel('Amplitude')
-ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size))))  # bottom subplot, frequency domain
-ax[1, 0].set_xlim(0, fs / 2)
+    sig = start_window.get_params
+    if sig.size == 0:
+        quit()
+    filtered = sig
+    t = np.linspace(0, 1, sig.size, False)
+    fs = sig.size * 10
 
-canvas = FigureCanvasTkAgg(figure, root)  # making the plots a Tkinter object and binding it to the main window
-canvas.get_tk_widget().place(x=0, y=0, anchor="nw", relwidth=0.8, relheight=1)
-canvas.draw()  # needs to be called in order to refresh the plot on the GUI window
+    root = tk.Tk()  # main window
+    center(root, 1000, 600)
+    root.configure(background='white')  # main window background color
+    root.title('GUI')  # main window title
+    figure, ax = plt.subplots(2, 2)
+    ax[0, 0].plot(t, sig, color='#1f77b4', lw=1)  # upper subplot, time domain
+    ax[0, 0].set_title('Original signal', fontsize=10)
+    ax[0, 0].set_xlabel('Time [s]')
+    ax[0, 0].set_ylabel('Amplitude')
+    ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size))))  # bottom subplot, frequency domain
+    ax[1, 0].set_xlim(0, fs / 2)
+    for x in ax:
+        for y in x:
+            y.tick_params(axis='x', labelsize=8)
+            y.tick_params(axis='y', labelsize=8)
 
-can_click = canvas.mpl_connect('button_press_event',
-                               click)  # binding the canvas to functions that react to certain behavior
-can_enter = canvas.mpl_connect('axes_enter_event', hover_enter)
-can_leave = canvas.mpl_connect('axes_leave_event', hover_leave)
+    canvas = FigureCanvasTkAgg(figure, root)  # making the plots a Tkinter object and binding it to the main window
+    canvas.get_tk_widget().place(x=0, y=0, anchor="nw", relwidth=0.8, relheight=1)
 
-# CREATING OF TOOLBAR AND THE CONTROL PANEL WITH ITS CORRESPONDING BUTTONS AND ENTRIES AND PLACING THEM ON THE MAIN
-# WINDOW
-s = ttk.Style()
-s.configure('White.TCheckbutton', background='white')
-s.configure('White.TRadiobutton', background='white')
-panel = tk.LabelFrame(root, bg='white')
-panel.place(relx=0.75, rely=0.1, anchor="nw", relwidth=0.23, height=230)
-filter_type_cbb = ttk.Combobox(panel, values=['Off', 'Lowpass', 'Highpass', 'Bandpass', 'Bandstop'], state='readonly')
-filter_type_cbb.current(0)
-filter_type_cbb.config(width=9)
-filter_type_cbb.bind('<<ComboboxSelected>>', lambda event: start_filtering(event))
-filter_type_cbb.place(relx=0.05, y=20, anchor='w')
+    can_click = canvas.mpl_connect('button_press_event',
+                                   click)  # binding the canvas to functions that react to certain behavior
+    can_enter = canvas.mpl_connect('axes_enter_event', hover_enter)
+    can_leave = canvas.mpl_connect('axes_leave_event', hover_leave)
 
-save_button = ttk.Button(panel, text='Save', command=save, width=5)
-save_button.place(relx=0.95, y=20, anchor='e')
+    # CREATING OF TOOLBAR AND THE CONTROL PANEL WITH ITS CORRESPONDING BUTTONS AND ENTRIES AND PLACING THEM ON THE MAIN
+    # WINDOW
+    s = ttk.Style()
+    s.configure('White.TCheckbutton', background='white')
+    s.configure('White.TRadiobutton', background='white')
+    panel = tk.LabelFrame(root, bg='white')
+    panel.place(relx=0.75, rely=0.1, anchor="nw", relwidth=0.23, height=230)
+    filter_type_cbb = ttk.Combobox(panel, values=['Off', 'Lowpass', 'Highpass', 'Bandpass', 'Bandstop'], state='readonly')
+    filter_type_cbb.current(0)
+    filter_type_cbb.config(width=9)
+    filter_type_cbb.bind('<<ComboboxSelected>>', lambda event: start_filtering(event))
+    filter_type_cbb.place(relx=0.05, y=20, anchor='w')
 
-label = ttk.Label(panel, text='No filter applied', background='white')
-label.place(relx=0.05, y=45, anchor="w", width=135, height=20)
+    save_button = ttk.Button(panel, text='Save', command=save, width=5)
+    save_button.place(relx=0.95, y=20, anchor='e')
 
-left_cutoff_entry = ttk.Entry(panel, width=6, justify='center')
-left_cutoff_entry.bind("<Return>", lambda event: start_filtering(event))
-left_cutoff_entry.place(relx=0.05, y=70, anchor="w", width=45, height=20)
-left_cutoff_entry.configure(state='disabled')
+    label = ttk.Label(panel, text='No filter applied', background='white')
+    label.place(relx=0.05, y=45, anchor="w", width=135, height=20)
 
-right_cutoff_entry = ttk.Entry(panel, width=6, justify='center')
-right_cutoff_entry.bind("<Return>", lambda event: start_filtering(event))
-right_cutoff_entry.place(x=65, y=70, anchor="w", width=45, height=20)
-right_cutoff_entry.configure(state='disabled')
+    left_cutoff_entry = ttk.Entry(panel, width=6, justify='center')
+    left_cutoff_entry.bind("<Return>", lambda event: start_filtering(event))
+    left_cutoff_entry.place(relx=0.05, y=70, anchor="w", width=45, height=20)
+    left_cutoff_entry.configure(state='disabled')
 
-ttk.Label(panel, text='Order', background='white').place(relx=0.05, y=95, anchor="w", width=135, height=20)
-ttk.Label(panel, text='Fs', background='white').place(x=65, y=95, anchor="w", width=20, height=20)
+    right_cutoff_entry = ttk.Entry(panel, width=6, justify='center')
+    right_cutoff_entry.bind("<Return>", lambda event: start_filtering(event))
+    right_cutoff_entry.place(x=65, y=70, anchor="w", width=45, height=20)
+    right_cutoff_entry.configure(state='disabled')
 
-filter_order = ttk.Entry(panel, width=6, justify='center')
-filter_order.bind("<Return>", lambda event: start_filtering(event))
-filter_order.place(relx=0.05, y=120, anchor="w", width=45, height=20)
-filter_order.configure(state='disabled')
+    ttk.Label(panel, text='Order', background='white').place(relx=0.05, y=95, anchor="w", width=135, height=20)
+    ttk.Label(panel, text='Fs', background='white').place(x=65, y=95, anchor="w", width=20, height=20)
 
-sampling_frequency = ttk.Entry(panel, width=6, justify='center')
-sampling_frequency.bind("<Return>", lambda event: start_filtering(event))
-sampling_frequency.place(x=65, y=120, anchor="w", width=45, height=20)
-sampling_frequency.insert(0, fs)
+    filter_order = ttk.Entry(panel, width=6, justify='center')
+    filter_order.bind("<Return>", lambda event: start_filtering(event))
+    filter_order.place(relx=0.05, y=120, anchor="w", width=45, height=20)
+    filter_order.configure(state='disabled')
 
-diff_check = tk.StringVar(value='off')
-prev_diff = 'off'
-trend = tk.BooleanVar(value=False)
-trend_line = tk.BooleanVar(value=False)
+    sampling_frequency = ttk.Entry(panel, width=6, justify='center')
+    sampling_frequency.bind("<Return>", lambda event: start_filtering(event))
+    sampling_frequency.place(x=65, y=120, anchor="w", width=45, height=20)
+    sampling_frequency.insert(0, fs)
 
-ttk.Radiobutton(panel, text='Off', var=diff_check, value='off', style='White.TRadiobutton',
-                command=lambda: differentiate()).place(relx=0.05, y=140)
-ttk.Radiobutton(panel, text='Differentiate', var=diff_check, value='differentiate', style='White.TRadiobutton',
-                command=lambda: differentiate()).place(relx=0.05, y=160)
-ttk.Radiobutton(panel, text='Integrate', var=diff_check, value='integrate', style='White.TRadiobutton',
-                command=lambda: differentiate()).place(relx=0.05, y=180)
-ttk.Checkbutton(panel, text='Detrend', style='White.TCheckbutton', var=trend,
-                command=lambda: detrend()).place(relx=0.05, y=200)
-ttk.Checkbutton(panel, text='Detrending line', style='White.TCheckbutton', var=trend_line,
-                command=lambda: detrend_line()).place(relx=0.4, y=200)
+    diff_check = tk.StringVar(value='off')
+    prev_diff = 'off'
+    trend = tk.BooleanVar(value=False)
+    trend_line = tk.BooleanVar(value=False)
 
-toolbar = Navigator(canvas, root, filter_type_cbb,
-                    [left_cutoff_entry, right_cutoff_entry, filter_order, sampling_frequency, filter_type_cbb],
-                    [can_click, 'button_press_event', click],
-                    [can_enter, 'axes_enter_event', hover_enter],
-                    [can_leave, 'axes_leave_event', hover_leave])
-toolbar.place(relx=0.1, rely=0, anchor="nw")
-toolbar.config(background='white')
-toolbar._message_label.config(background='white')
+    ttk.Radiobutton(panel, text='Off', var=diff_check, value='off', style='White.TRadiobutton',
+                    command=lambda: differentiate()).place(relx=0.05, y=140)
+    ttk.Radiobutton(panel, text='Differentiate', var=diff_check, value='differentiate', style='White.TRadiobutton',
+                    command=lambda: differentiate()).place(relx=0.05, y=160)
+    ttk.Radiobutton(panel, text='Integrate', var=diff_check, value='integrate', style='White.TRadiobutton',
+                    command=lambda: differentiate()).place(relx=0.05, y=180)
+    ttk.Checkbutton(panel, text='Detrend', style='White.TCheckbutton', var=trend,
+                    command=lambda: detrend()).place(relx=0.05, y=200)
+    ttk.Checkbutton(panel, text='Detrending line', style='White.TCheckbutton', var=trend_line,
+                    command=lambda: detrend()).place(relx=0.4, y=200)
 
-root.mainloop()  # call the main window to run
+    toolbar = Navigator(canvas, root, filter_type_cbb,
+                        [left_cutoff_entry, right_cutoff_entry, filter_order, sampling_frequency, filter_type_cbb],
+                        [can_click, 'button_press_event', click],
+                        [can_enter, 'axes_enter_event', hover_enter],
+                        [can_leave, 'axes_leave_event', hover_leave])
+    toolbar.place(relx=0.1, rely=0, anchor="nw")
+    toolbar.config(background='white')
+    toolbar._message_label.config(background='white')
+
+    differentiate('save')
+    detrend()
+    root.mainloop()  # call the main window to run
+
+# todo zły linspace

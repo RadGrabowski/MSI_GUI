@@ -36,7 +36,7 @@ def click(event):
             right_cutoff_entry.delete(0, tk.END)
             left_cutoff_entry.insert(tk.END, left)
             right_cutoff_entry.insert(tk.END, right)
-        start_filtering(None)
+        start_filtering('Placeholder')
 
 
 def hover_enter(event):
@@ -52,96 +52,95 @@ def hover_leave(event):
 def start_filtering(event):
     """Gets called when the filter type, frequency or order changes. Recalculates then the output based on the newly
     set parameters and plots a new graph on the GUI. """
-    global filtered, prev_diff, fs
+    global filtered, prev_diff, fs, dt, t
     ax[0, 0].clear()  # clears the subplots before drawing the new ones
     ax[1, 0].clear()
-    diff_check.set('off')
-    differentiate('_')
-    fs = int(sampling_frequency.get())
+    # diff_check.set('off')
+    # differentiate('_')
 
-    if filter_type_cbb.get() == 'Off':  # if there is no filter applied, there is no possibility to insert a value in
-        # the entries determining filter's parameters
-        ax[0, 0].plot(t, sig, color='#1f77b4', lw=1)
-        ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size))))
-        left_cutoff_entry.configure(state='disabled')
-        right_cutoff_entry.configure(state='disabled')
-        filter_order.configure(state='disabled')
-        label.configure(text='No filter applied')
-    else:
-        try:
-            left_cutoff_entry.configure(state='normal')
-            filter_order.configure(state='normal')
-            if left_cutoff_entry.get() == '':
-                left_cutoff_entry.insert(tk.END, round(fs / 5, 2))  # default filtering position if no value was set
-            if filter_order.get() == '':
-                filter_order.insert(tk.END, 10)  # default filter order if no value was set
-            left = round(float(left_cutoff_entry.get()), 2)
+    try:
+        fs = float(sampling_frequency.get())
+        dt = 1 / fs
+        t = np.linspace(0, sig.size * dt, sig.size, False)
 
-            if filter_type_cbb.get() == 'Lowpass' or filter_type_cbb.get() == 'Highpass':
-                # design of the lowpass or highpass filter, configuration of the red shaded part
-                right_cutoff_entry.configure(state='disabled')
-                label.configure(text='Critical frequency (Hz):')
-                sos = signal.butter(int(filter_order.get()), left, filter_type_cbb.get().lower(), fs=fs,
-                                    output='sos')
-                if filter_type_cbb.get() == 'Highpass':
-                    ax[1, 0].axvspan(left, fs / 2, alpha=0.3, color='red')
-                else:
-                    ax[1, 0].axvspan(0, left, alpha=0.3, color='red')
+        if filter_type_cbb.get() == 'Off':  # if there is no filter applied, there is no possibility to insert a value in
+            # the entries determining filter's parameters
+            ax[0, 0].plot(t, sig, color='#1f77b4', lw=1)
+            ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size*5))))
+            left_cutoff_entry.configure(state='disabled')
+            right_cutoff_entry.configure(state='disabled')
+            filter_order.configure(state='disabled')
+            label.configure(text='No filter applied')
+        else:
+                left_cutoff_entry.configure(state='normal')
+                filter_order.configure(state='normal')
+                if left_cutoff_entry.get() == '':
+                    left_cutoff_entry.insert(tk.END, round(fs / 5, 2))  # default filtering position if no value was set
+                if filter_order.get() == '':
+                    filter_order.insert(tk.END, 10)  # default filter order if no value was set
+                left = round(float(left_cutoff_entry.get()), 2)
 
-            if filter_type_cbb.get() == 'Bandpass' or filter_type_cbb.get() == 'Bandstop':
-                # design of the bandpass or bandstop filter, configuration of the red shaded part
-                label.configure(text='Critical frequencies (Hz):')
-                right_cutoff_entry.configure(state='normal')
-                if right_cutoff_entry.get() == '':
-                    right_cutoff_entry.insert(tk.END, round(fs / 3, 2))
-                right = round(float(right_cutoff_entry.get()), 2)
-                if right < left:
-                    right = left + fs / 10
-                    if right > fs / 2:
-                        right -= fs / 10
-                        left = right - fs / 10
+                if filter_type_cbb.get() == 'Lowpass' or filter_type_cbb.get() == 'Highpass':
+                    # design of the lowpass or highpass filter, configuration of the red shaded part
+                    right_cutoff_entry.configure(state='disabled')
+                    label.configure(text='Critical frequency (Hz):')
+                    sos = signal.butter(int(filter_order.get()), left, filter_type_cbb.get().lower(), fs=fs,
+                                        output='sos')
+                    if filter_type_cbb.get() == 'Highpass':
+                        ax[1, 0].axvspan(left, fs / 2, alpha=0.3, color='red')
+                    else:
+                        ax[1, 0].axvspan(0, left, alpha=0.3, color='red')
 
-                sos = signal.butter(int(filter_order.get()), (left, right), filter_type_cbb.get().lower(),
-                                    fs=fs, output='sos')
-                ax[1, 0].axvline(right, color='red')
+                if filter_type_cbb.get() == 'Bandpass' or filter_type_cbb.get() == 'Bandstop':
+                    # design of the bandpass or bandstop filter, configuration of the red shaded part
+                    label.configure(text='Critical frequencies (Hz):')
+                    right_cutoff_entry.configure(state='normal')
+                    if right_cutoff_entry.get() == '':
+                        right_cutoff_entry.insert(tk.END, round(fs / 3, 2))
+                    right = round(float(right_cutoff_entry.get()), 2)
+                    if right < left:
+                        right = left + fs / 10
+                        if right > fs / 2:
+                            right -= fs / 10
+                            left = right - fs / 10
 
-                if filter_type_cbb.get() == 'Bandstop':
-                    ax[1, 0].axvspan(0, left, alpha=0.3, color='red')
-                    ax[1, 0].axvspan(right, fs / 2, alpha=0.3, color='red')
-                else:
-                    ax[1, 0].axvspan(left, right, alpha=0.3, color='red')
+                    sos = signal.butter(int(filter_order.get()), (left, right), filter_type_cbb.get().lower(),
+                                        fs=fs, output='sos')
+                    ax[1, 0].axvline(right, color='red')
 
-                # left_cutoff_entry.delete(0, tk.END)
-                # left_cutoff_entry.insert(tk.END, left)
-                # right_cutoff_entry.delete(0, tk.END)
-                # right_cutoff_entry.insert(tk.END, right)
+                    if filter_type_cbb.get() == 'Bandstop':
+                        ax[1, 0].axvspan(0, left, alpha=0.3, color='red')
+                        ax[1, 0].axvspan(right, fs / 2, alpha=0.3, color='red')
+                    else:
+                        ax[1, 0].axvspan(left, right, alpha=0.3, color='red')
 
-            filtered = signal.sosfilt(sos, sig)  # the original signal is filtered with the designed filter
+                filtered = signal.sosfilt(sos, sig)  # the original signal is filtered with the designed filter
 
-            ax[0, 0].plot(t, filtered, color='#1f77b4', lw=1)  # time domain plot
-            ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size))))  # frequency domain, original signal
-            ax[1, 0].magnitude_spectrum(filtered, Fs=fs, color='y', lw=1, pad_to=2**ceil(log2(abs(sig.size))))  # frequency domain, filtered signal
+                ax[0, 0].plot(t, filtered, color='#1f77b4', lw=1)  # time domain plot
+                ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size*5))))  # frequency domain, original signal
+                ax[1, 0].magnitude_spectrum(filtered, Fs=fs, color='y', lw=1, pad_to=2**ceil(log2(abs(sig.size*5))))  # frequency domain, filtered signal
+                ax[1, 0].axvline(left, color='red')  # red line on the cutoff frequency
+                ax[1, 0].legend(('Original', 'Filtered'), prop={'size': 8}, loc=1)
 
-            ax[1, 0].axvline(left, color='red')  # red line on the cutoff frequency
-            ax[1, 0].legend(('Original', 'Filtered'), prop={'size': 8}, loc=1)
-
-        except ValueError as ex:  # when trying to insert incorrect data into the entries, a window informing about
-            # it is displayed
-            messagebox.showerror(ex, str(ex).capitalize())
-            return
+    except ValueError as ex:  # when trying to insert incorrect data into the entries, a window informing about
+        # it is displayed
+        messagebox.showerror(ex, str(ex).capitalize())
+        return
 
     ax[0, 0].set_ylim(auto=True)
-    ax[0, 0].set_title('Original signal', fontsize=10)
-    ax[0, 0].set_xlabel('Time [s]')
-    ax[0, 0].set_ylabel('Amplitude')
     ax[0, 0].ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
     ax[1, 0].set_xlim(0, fs / 2)
+    set_titles()
+    if event:
+        differentiate()
+        detrend()
     if toolbar._active is None:
         toolbar.forward()
     canvas.draw()
 
 
 def differentiate(callback=None):
+    """Called when the radio button value changes in order to differentiate or integrate data."""
     global filtered, prev_diff
     ax[0, 1].clear()
     i = cumtrapz(filtered)
@@ -168,31 +167,63 @@ def differentiate(callback=None):
         prev_diff = 'integrate'
         differentiated = i
 
-    ax[0, 1].ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
+    set_titles()
+    if callback != 'save':
+        detrend()
     canvas.draw()
     return differentiated
 
 
 def detrend():
+    """Called when the value of the checkboxes changes in order to detrend the data and draw a detrending line."""
     data = differentiate('save')
     ax[1, 1].clear()
     if trend.get():
         data = signal.detrend(data)
     ax[1, 1].plot(t[:len(data)], data, color='#1f77b4', lw=1)
+    set_titles()
     if trend_line.get():
         z = np.polyfit(t[:len(data)], data, 1)
         p = np.poly1d(z)
         ax[1, 1].plot(t, p(t), "k--", dashes=(5, 10), lw=1)
-        if z[1] < 0:
+        if -10**-3 < z[0] < 10**-3:
+            if -10 ** -3 < z[1] < 10 ** -3:
+                ax[1, 1].set_title(f"y = 0", fontsize=10)
+            else:
+                ax[1, 1].set_title(f"y = {z[1]:.2g}", fontsize=10)
+        elif -10**-3 < z[1] < 10**-3:
+            ax[1, 1].set_title(f"y = {z[0]:.2g}", fontsize=10)
+        elif z[1] < 0:
             ax[1, 1].set_title(f"y = {z[0]:.2g}x {z[1]:.2g}", fontsize=10)  # the line equation
         else:
             ax[1, 1].set_title(f"y = {z[0]:.2g}x +{z[1]:.2g}", fontsize=10)
-    ax[1,1].yaxis.set_major_locator(MaxNLocator(7))
-
+    start_filtering(None)
     canvas.draw()
 
 
+def set_titles():
+    """Sets the title and axes description on each of the subplots."""
+    ax[0, 0].set_title('Time-domain', fontsize=10)
+    ax[0, 0].set_xlabel('Time [s]')
+    ax[0, 0].set_ylabel('Amplitude')
+    ax[0, 0].yaxis.set_major_locator(MaxNLocator(5))
+    ax[0, 0].ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
+    ax[1, 0].set_title('Frequency-domain', fontsize=10)
+    ax[1, 0].yaxis.set_major_locator(MaxNLocator(5))
+    ax[1, 0].ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
+    ax[0, 1].set_title('Differentiated / integrated', fontsize=10)
+    ax[0, 1].set_xlabel('Time [s]')
+    ax[0, 1].set_ylabel('Amplitude')
+    ax[0, 1].yaxis.set_major_locator(MaxNLocator(5))
+    ax[0, 1].ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
+    ax[1, 1].set_xlabel('Time [s]')
+    ax[1, 1].set_ylabel('Amplitude')
+    ax[1, 1].yaxis.set_major_locator(MaxNLocator(5))
+    ax[1, 1].ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
+
+
 def save():
+    """Saves the preprocessed data in a new user-defined .mat file."""
     files = [('MATLAB Files', '*.mat')]
     file = asksaveasfile(filetypes=files, defaultextension=files)
     data = differentiate('save')
@@ -204,7 +235,6 @@ def save():
 
 def center(window, width, height):
     """Puts the given window in the center of the screen."""
-
     frm_width = window.winfo_rootx() - window.winfo_x()
     win_width = width + 2 * frm_width
     titlebar_height = window.winfo_rooty() - window.winfo_y()
@@ -215,19 +245,7 @@ def center(window, width, height):
     window.deiconify()
 
 
-# GETTING THE INPUT SIGNAL, EXTRACTING ITS USEFUL DATA
-# sig = loadmat(r'C:\Users\ADMIN\Documents\MATLAB\MSI\lab2.mat')
-# for key in sig.keys():
-#     if isinstance(sig[key], np.ndarray):
-#         sig = np.squeeze(sig[key])
-
-# t = np.linspace(0, 1, 1000, False)
-# sig = np.sin(2 * np.pi * 10 * t) + np.sin(2 * np.pi * 20 * t)
-# fs = 100
-# filtered = sig
-
 # BEGIN OF GUI, PLACEMENT OF ELEMENTS, BINDING TO EVENTS, ETC
-
 if __name__ == '__main__':
     opening_window = tk.Tk()
     center(opening_window, 250, 110)
@@ -238,20 +256,20 @@ if __name__ == '__main__':
     if sig.size == 0:
         quit()
     filtered = sig
-    t = np.linspace(0, 1, sig.size, False)
-    fs = sig.size * 10
+    fs = 5000
+    dt = 1/fs
+    t = np.linspace(0, sig.size*dt, sig.size, False)
 
     root = tk.Tk()  # main window
-    center(root, 1000, 600)
+    center(root, 1070, 650)
     root.configure(background='white')  # main window background color
-    root.title('GUI')  # main window title
+    root.title('GUI for signal pre-processing')  # main window title
     figure, ax = plt.subplots(2, 2)
     ax[0, 0].plot(t, sig, color='#1f77b4', lw=1)  # upper subplot, time domain
-    ax[0, 0].set_title('Original signal', fontsize=10)
-    ax[0, 0].set_xlabel('Time [s]')
-    ax[0, 0].set_ylabel('Amplitude')
-    ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size))))  # bottom subplot, frequency domain
+    ax[1, 0].magnitude_spectrum(sig, Fs=fs, color='#1f77b4', lw=1, pad_to=2**ceil(log2(abs(sig.size*5))))  # bottom subplot, frequency domain
     ax[1, 0].set_xlim(0, fs / 2)
+    plt.subplots_adjust(hspace=0.33, wspace=0.28)
+
     for x in ax:
         for y in x:
             y.tick_params(axis='x', labelsize=8)
@@ -335,5 +353,3 @@ if __name__ == '__main__':
     differentiate('save')
     detrend()
     root.mainloop()  # call the main window to run
-
-# todo zły linspace

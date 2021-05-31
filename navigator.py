@@ -57,7 +57,7 @@ class Navigator(NavigationToolbar2Tk):
         self._set_cursor(event)
         if event.inaxes and event.inaxes.get_navigate():
             try:
-                s = event.inaxes.format_coord(round(event.xdata, 2), round(event.ydata, 2))
+                s = event.inaxes.format_coord(float(f"{event.xdata:.2g}"), float(f"{event.ydata:.2g}"))
             except (ValueError, OverflowError):
                 pass
             else:
